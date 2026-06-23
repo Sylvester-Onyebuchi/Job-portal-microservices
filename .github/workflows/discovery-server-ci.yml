@@ -1,0 +1,50 @@
+name: discovery-server ci
+
+on:
+  push:
+    branches: [backend, main, master]
+    paths:
+      - discovery-server/**
+      - .github/workflows/discovery-server-ci.yml
+  pull_request:
+    branches: [backend, main, master]
+    paths:
+      - discovery-server/**
+      - .github/workflows/discovery-server-ci.yml
+  workflow_dispatch:
+
+jobs:
+  run-discovery-server:
+    name: Build and run discovery-server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build discovery-server
+        working-directory: discovery-server
+        run: |
+          chmod +x mvnw
+          ./mvnw --batch-mode clean package -DskipTests
+
+      - name: Run discovery-server
+        working-directory: discovery-server
+        run: |
+          java -jar target/*.jar --server.port=0 > app.log 2>&1 &
+          APP_PID=$!
+          sleep 25
+          if ! kill -0 "$APP_PID" 2>/dev/null; then
+            cat app.log
+            exit 1
+          fi
+          echo "discovery-server started successfully"
+          kill "$APP_PID"
+

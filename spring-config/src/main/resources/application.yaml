@@ -1,0 +1,41 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: spring-config
+
+  rabbitmq:
+    host: ${SPRING_CONFIG_RABBITMQ_HOST}
+    port: ${SPRING_CONFIG_RABBITMQ_PORT}
+    username: ${SPRING_CONFIG_RABBITMQ_USERNAME}
+    password: ${SPRING_CONFIG_RABBITMQ_PASSWORD}
+
+  cloud:
+    bus:
+      destination: springCloudBus
+      enabled: true
+    stream:
+      bindings:
+        springCloudBusInput:
+          destination: springCloudBus
+          group: spring-config
+    config:
+      server:
+        git:
+          uri: ${SPRING_CONFIG_GIT_URI}
+          clone-on-start: true
+          default-label: ${SPRING_CONFIG_GIT_DEFAULT_LABEL}
+  config:
+    import: optional:file:.env.local.properties
+
+eureka:
+  client:
+    service-url:
+      defaultZone: ${EUREKA_DEFAULT_ZONE}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,busrefresh

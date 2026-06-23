@@ -1,0 +1,17 @@
+POST http://localhost:8081/api/v1/auth/public/create
+Content-Type: application/json
+
+{
+  "username": "sy-onah",
+  "email": "onyisy@gmail.com",
+  "firstName": "Sylvester",
+  "lastName": "Onah",
+  "password": "12345678"
+}
+
+###
+### GET request to example server
+GET https://examples.http-client.intellij.net/get
+    ?generated-in=IntelliJ IDEA
+
+###

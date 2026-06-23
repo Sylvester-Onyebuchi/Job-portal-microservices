@@ -1,0 +1,59 @@
+name: application-service ci
+
+on:
+  push:
+    branches: [backend, main, master]
+    paths:
+      - application-service/**
+      - .github/workflows/application-service-ci.yml
+  pull_request:
+    branches: [backend, main, master]
+    paths:
+      - application-service/**
+      - .github/workflows/application-service-ci.yml
+  workflow_dispatch:
+
+jobs:
+  run-application-service:
+    name: Build and run application-service
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Build application-service
+        working-directory: application-service
+        run: |
+          chmod +x mvnw
+          ./mvnw --batch-mode clean package -DskipTests
+
+      - name: Run application-service
+        working-directory: application-service
+        run: |
+          java -jar target/*.jar \
+            --server.port=0 \
+            --spring.main.lazy-initialization=true \
+            --spring.cloud.config.enabled=false \
+            --spring.cloud.bus.enabled=false \
+            --eureka.client.enabled=false \
+            --spring.rabbitmq.listener.simple.auto-startup=false \
+            --spring.rabbitmq.listener.direct.auto-startup=false \
+            --spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.flyway.autoconfigure.FlywayAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.DataJpaRepositoriesAutoConfiguration \
+            > app.log 2>&1 &
+          APP_PID=$!
+          sleep 25
+          if ! kill -0 "$APP_PID" 2>/dev/null; then
+            cat app.log
+            exit 1
+          fi
+          echo "application-service started successfully"
+          kill "$APP_PID"
+
