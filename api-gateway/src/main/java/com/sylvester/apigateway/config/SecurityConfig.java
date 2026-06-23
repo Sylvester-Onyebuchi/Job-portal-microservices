@@ -2,6 +2,8 @@ package com.sylvester.apigateway.config;
 
 
 
+import com.sylvester.apigateway.redis_and_rate_limiting.RateLimitFilter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.Customizer;

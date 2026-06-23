@@ -9,20 +9,7 @@
         <outputRelativeToContentRoot value="true" />
         <module name="spring-config" />
       </profile>
-      <profile name="Annotation profile for application-service" enabled="true">
-        <sourceOutputDir name="target/generated-sources/annotations" />
-        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
-        <outputRelativeToContentRoot value="true" />
-        <processorPath useClasspath="false">
-          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.46/lombok-1.18.46.jar" />
-          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.46/lombok-1.18.46.jar" />
-        </processorPath>
-        <module name="application-service" />
-        <module name="discovery-server" />
-        <module name="company-service" />
-        <module name="notification-service" />
-      </profile>
-      <profile name="Annotation profile for spring-auth-keycloak" enabled="true">
+      <profile name="Annotation profile for job-service" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
@@ -31,8 +18,21 @@
         </processorPath>
         <module name="job-service" />
         <module name="api-gateway" />
+        <module name="discovery-server" />
       </profile>
-      <profile name="Annotation profile for auth-service" enabled="true">
+      <profile name="Annotation profile for notification-service" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.46/lombok-1.18.46.jar" />
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.46/lombok-1.18.46.jar" />
+        </processorPath>
+        <module name="notification-service" />
+        <module name="application-service" />
+        <module name="company-service" />
+      </profile>
+      <profile name="Annotation profile for spring-auth-keycloak" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />

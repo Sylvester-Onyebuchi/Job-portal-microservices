@@ -3,25 +3,4 @@ spring:
     name: auth-service
   config:
     import: optional:configserver:http://localhost:8080
-#  datasource:
-#    url: jdbc:postgresql://localhost:5440/auth_db
-#    username: auth_user
-#    password: pass_for_auth
-#  jpa:
-#    hibernate:
-#      ddl-auto: update
-#  security:
-#    oauth2:
-#      resourceserver:
-#        jwt:
-#          issuer-uri: http://localhost:8079/realms/spring-auth
-#
-#keycloak:
-#  server-url: http://localhost:8079
-#  realm: spring-auth
-#  client-id: auth-cli
-#  client-secret: YIepD1VtVzrFKFpyam02tbUL2iJImoLP
-#
-#
-#server:
-#  port: 8081
+

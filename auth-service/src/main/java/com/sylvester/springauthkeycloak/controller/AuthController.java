@@ -52,16 +52,18 @@ public class AuthController {
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<TokenResponse> refreshToken(@Valid @RequestBody TokenRequest request) {
-        TokenResponse response = authService.refresh(request.refreshToken());
+    public ResponseEntity<TokenResponse> refreshToken(@Valid @RequestBody TokenRequest request, @AuthenticationPrincipal Jwt jwt) {
+        String email = jwt.getClaimAsString("email");
+        TokenResponse response = authService.refresh(request.refreshToken(), email);
         return ResponseEntity.ok(response);
 
     }
 
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@RequestBody TokenRequest request) {
-        authService.logout(request.refreshToken());
+    public ResponseEntity<?> logout(@RequestBody TokenRequest request, @AuthenticationPrincipal Jwt jwt) {
+        String email = jwt.getClaimAsString("email");
+        authService.logout(email,request.refreshToken());
         return ResponseEntity.noContent().build();
 
     }

@@ -6,6 +6,7 @@ import com.sylvester.springauthkeycloak.dto.*;
 import com.sylvester.springauthkeycloak.entity.User;
 import com.sylvester.springauthkeycloak.exception.AlreadyExistException;
 import com.sylvester.springauthkeycloak.exception.NotFoundException;
+import com.sylvester.springauthkeycloak.repository.TokenRepository;
 import com.sylvester.springauthkeycloak.repository.UserRepository;
 import jakarta.ws.rs.core.Response;
 import lombok.extern.slf4j.Slf4j;
@@ -42,6 +43,8 @@ public class AuthServiceImpl implements AuthService {
 
     private final RestClient restClient;
 
+    private final TokenRepository tokenRepository;
+
 
     @Value("${keycloak.realm}")
     private String realm;
@@ -57,10 +60,12 @@ public class AuthServiceImpl implements AuthService {
 
     public AuthServiceImpl(Keycloak keycloak,
                            UserRepository userRepository,
-                           RestClient restClient) {
+                           RestClient restClient,
+                           TokenRepository tokenRepository) {
         this.keycloak = keycloak;
         this.userRepository = userRepository;
         this.restClient = restClient;
+        this.tokenRepository = tokenRepository;
 
     }
 
@@ -207,17 +212,23 @@ public class AuthServiceImpl implements AuthService {
 
         String url = "http://localhost:8079/realms/"+realm+"/protocol/openid-connect/token";
 
-       return restClient.post()
+      TokenResponse response = restClient.post()
                 .uri(url)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(formData)
                 .retrieve()
                 .body(TokenResponse.class);
 
+      tokenRepository.storeTokens(request.email(), response.accessToken(), response.refreshToken(),
+              response.expiresIn() * 1000, response.refreshExpiresIn() * 1000);
+
+      return response;
+
+
     }
 
     @Override
-    public TokenResponse refresh(String refreshToken){
+    public TokenResponse refresh(String refreshToken, String username){
 
         MultiValueMap<String,String> form = new LinkedMultiValueMap<>();
 
@@ -231,13 +242,18 @@ public class AuthServiceImpl implements AuthService {
 
         form.add("refresh_token",refreshToken);
 
-        return restClient.post()
+        TokenResponse response = restClient.post()
 
                 .uri(url)
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .body(form)
                 .retrieve()
                 .body(TokenResponse.class);
+        tokenRepository.removeAllTokens(username, response.expiresIn() * 1000, response.refreshExpiresIn() * 1000);
+
+        tokenRepository.storeTokens(username, response.accessToken(), response.refreshToken(),
+                response.expiresIn() * 1000, response.refreshExpiresIn() * 1000);
+        return response;
 
     }
 
@@ -259,7 +275,7 @@ public class AuthServiceImpl implements AuthService {
     }
 
     @Override
-    public void logout(String refreshToken){
+    public void logout(String email,String refreshToken){
 
         MultiValueMap<String,String> form = new LinkedMultiValueMap<>();
 
@@ -277,6 +293,16 @@ public class AuthServiceImpl implements AuthService {
                 .body(form)
                 .retrieve()
                 .toBodilessEntity();
+        String accessToken = tokenRepository.getAccessToken(email);
+        String refresh = tokenRepository.getRefreshToken(email);
+
+        Long accessExpiration = tokenRepository.remainingLifetime(accessToken);
+        Long refreshExpiration = tokenRepository.getRefreshTokenTtl(refresh);
+
+        tokenRepository.removeAllTokens(email, accessExpiration, refreshExpiration);
+
+
+
     }
 
 

@@ -1,11 +1,14 @@
 package com.sylvester.springauthkeycloak.service;
 
 import com.sylvester.springauthkeycloak.dto.CreateUserRequest;
+import com.sylvester.springauthkeycloak.dto.LoginRequest;
+import com.sylvester.springauthkeycloak.dto.TokenResponse;
 import com.sylvester.springauthkeycloak.dto.UpdateUserRequest;
 import com.sylvester.springauthkeycloak.dto.UserResponse;
 import com.sylvester.springauthkeycloak.entity.User;
 import com.sylvester.springauthkeycloak.exception.AlreadyExistException;
 import com.sylvester.springauthkeycloak.exception.NotFoundException;
+import com.sylvester.springauthkeycloak.repository.TokenRepository;
 import com.sylvester.springauthkeycloak.repository.UserRepository;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,15 +16,19 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.keycloak.admin.client.Keycloak;
 import org.keycloak.admin.client.resource.RealmResource;
+import org.keycloak.admin.client.resource.RoleMappingResource;
+import org.keycloak.admin.client.resource.RoleResource;
+import org.keycloak.admin.client.resource.RoleScopeResource;
+import org.keycloak.admin.client.resource.RolesResource;
 import org.keycloak.admin.client.resource.UserResource;
 import org.keycloak.admin.client.resource.UsersResource;
+import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
@@ -41,6 +48,10 @@ import static org.mockito.Mockito.when;
 class AuthServiceImplTest {
 
     private static final String REALM = "master";
+    private static final String CLIENT_ID = "client-id";
+    private static final String CLIENT_SECRET = "client-secret";
+    private static final String EMAIL = "sylvester@example.com";
+    private static final String USER_ID = "user-123";
 
     @Mock
     private Keycloak keycloak;
@@ -55,11 +66,25 @@ class AuthServiceImplTest {
     private UserResource userResource;
 
     @Mock
+    private RolesResource rolesResource;
+
+    @Mock
+    private RoleResource roleResource;
+
+    @Mock
+    private RoleMappingResource roleMappingResource;
+
+    @Mock
+    private RoleScopeResource roleScopeResource;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
-    private RestClient restClient;
+    private TokenRepository tokenRepository;
 
+    @Mock
+    private RestClient restClient;
 
     @Mock
     private RestClient.RequestBodyUriSpec requestBodyUriSpec;
@@ -71,27 +96,27 @@ class AuthServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        authService = new AuthServiceImpl(keycloak, userRepository, restClient);
+        authService = new AuthServiceImpl(keycloak, userRepository, restClient, tokenRepository);
         ReflectionTestUtils.setField(authService, "realm", REALM);
-        ReflectionTestUtils.setField(authService, "clientId", "client-id");
-        ReflectionTestUtils.setField(authService, "clientSecret", "client-secret");
+        ReflectionTestUtils.setField(authService, "clientId", CLIENT_ID);
+        ReflectionTestUtils.setField(authService, "clientSecret", CLIENT_SECRET);
     }
 
     @Test
-    void createUserCreatesKeycloakUserSendsVerificationEmailAndPersistsUser() {
-        CreateUserRequest request = new CreateUserRequest(
-                "sylvester",
-                "sylvester@example.com",
-                "Sylvester",
-                "Onah",
-                "password123"
-        );
-        Response response = Response.created(URI.create("http://localhost/admin/realms/master/users/user-123")).build();
+    void createUserCreatesKeycloakUserPersistsLocalUserAndAssignsUserRole() {
+        CreateUserRequest request = createUserRequest();
+        Response created = Response.created(URI.create("http://localhost/admin/realms/master/users/" + USER_ID)).build();
+        RoleRepresentation userRole = new RoleRepresentation();
+        userRole.setName("USER");
 
-        when(keycloak.realm(REALM)).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
-        when(usersResource.create(any(UserRepresentation.class))).thenReturn(response);
-        when(usersResource.get("user-123")).thenReturn(userResource);
+        mockRealmUsers();
+        when(usersResource.create(any(UserRepresentation.class))).thenReturn(created);
+        when(usersResource.get(USER_ID)).thenReturn(userResource);
+        when(realmResource.roles()).thenReturn(rolesResource);
+        when(rolesResource.get("USER")).thenReturn(roleResource);
+        when(roleResource.toRepresentation()).thenReturn(userRole);
+        when(userResource.roles()).thenReturn(roleMappingResource);
+        when(roleMappingResource.realmLevel()).thenReturn(roleScopeResource);
 
         authService.createUser(request);
 
@@ -99,7 +124,7 @@ class AuthServiceImplTest {
         verify(usersResource).create(keycloakUserCaptor.capture());
         UserRepresentation keycloakUser = keycloakUserCaptor.getValue();
         assertEquals("sylvester", keycloakUser.getUsername());
-        assertEquals("sylvester@example.com", keycloakUser.getEmail());
+        assertEquals(EMAIL, keycloakUser.getEmail());
         assertEquals("Sylvester", keycloakUser.getFirstName());
         assertEquals("Onah", keycloakUser.getLastName());
         assertEquals(Boolean.FALSE, keycloakUser.isEmailVerified());
@@ -111,230 +136,245 @@ class AuthServiceImplTest {
         ArgumentCaptor<User> savedUserCaptor = ArgumentCaptor.forClass(User.class);
         verify(userRepository).save(savedUserCaptor.capture());
         User savedUser = savedUserCaptor.getValue();
-        assertEquals("user-123", savedUser.getId());
-        assertEquals("sylvester@example.com", savedUser.getEmail());
+        assertEquals(USER_ID, savedUser.getId());
+        assertEquals("sylvester", savedUser.getUsername());
+        assertEquals(EMAIL, savedUser.getEmail());
         assertEquals("Sylvester", savedUser.getFirstName());
         assertEquals("Onah", savedUser.getLastName());
+
+        ArgumentCaptor<List<RoleRepresentation>> rolesCaptor = ArgumentCaptor.captor();
+        verify(roleScopeResource).add(rolesCaptor.capture());
+        assertEquals(List.of(userRole), rolesCaptor.getValue());
     }
 
     @Test
-    void createUserThrowsWhenKeycloakReportsDuplicateUser() {
-        CreateUserRequest request = new CreateUserRequest(
-                "sylvester",
-                "sylvester@example.com",
-                "Sylvester",
-                "Onah",
-                "password123"
-        );
-        Response response = Response.status(Response.Status.CONFLICT).build();
+    void createUserThrowsAlreadyExistsWhenKeycloakReturnsConflict() {
+        Response conflict = Response.status(Response.Status.CONFLICT).build();
 
-        when(keycloak.realm(REALM)).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
-        when(usersResource.create(any(UserRepresentation.class))).thenReturn(response);
+        mockRealmUsers();
+        when(usersResource.create(any(UserRepresentation.class))).thenReturn(conflict);
 
-        assertThrows(AlreadyExistException.class, () -> authService.createUser(request));
+        assertThrows(AlreadyExistException.class, () -> authService.createUser(createUserRequest()));
 
         verify(userRepository, never()).save(any());
     }
 
     @Test
-    void resendVerificationEmailSendsEmailWhenUserExistsAndIsNotVerified() {
-        UserRepresentation user = new UserRepresentation();
-        user.setId("user-123");
-        user.setEmailVerified(false);
+    void resendVerificationEmailSendsEmailForUnverifiedUser() {
+        UserRepresentation user = keycloakUser(false);
 
-        when(keycloak.realm(REALM)).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
-        when(usersResource.searchByEmail("sylvester@example.com", true)).thenReturn(List.of(user));
-        when(usersResource.get("user-123")).thenReturn(userResource);
+        mockRealmUsers();
+        when(usersResource.searchByEmail(EMAIL, true)).thenReturn(List.of(user));
+        when(usersResource.get(USER_ID)).thenReturn(userResource);
 
-        authService.resendVerificationEmail("sylvester@example.com");
+        authService.resendVerificationEmail(EMAIL);
 
         verify(userResource).sendVerifyEmail();
     }
 
     @Test
     void resendVerificationEmailThrowsWhenUserDoesNotExist() {
-        when(keycloak.realm(REALM)).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
-        when(usersResource.searchByEmail("missing@example.com", true)).thenReturn(List.of());
+        mockRealmUsers();
+        when(usersResource.searchByEmail(EMAIL, true)).thenReturn(List.of());
 
-        assertThrows(NotFoundException.class, () -> authService.resendVerificationEmail("missing@example.com"));
+        assertThrows(NotFoundException.class, () -> authService.resendVerificationEmail(EMAIL));
     }
 
     @Test
     void resendVerificationEmailThrowsWhenEmailIsAlreadyVerified() {
-        UserRepresentation user = new UserRepresentation();
-        user.setEmailVerified(true);
+        mockRealmUsers();
+        when(usersResource.searchByEmail(EMAIL, true)).thenReturn(List.of(keycloakUser(true)));
 
-        when(keycloak.realm(REALM)).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
-        when(usersResource.searchByEmail("sylvester@example.com", true)).thenReturn(List.of(user));
-
-        assertThrows(AlreadyExistException.class, () -> authService.resendVerificationEmail("sylvester@example.com"));
+        assertThrows(AlreadyExistException.class, () -> authService.resendVerificationEmail(EMAIL));
     }
 
     @Test
     void getUserReturnsUserResponseFromKeycloak() {
-        UserRepresentation user = new UserRepresentation();
-        user.setId("user-123");
+        UserRepresentation user = keycloakUser(false);
         user.setUsername("sylvester");
-        user.setEmail("sylvester@example.com");
         user.setFirstName("Sylvester");
         user.setLastName("Onah");
 
-        when(keycloak.realm(REALM)).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
-        when(usersResource.get("user-123")).thenReturn(userResource);
+        mockRealmUsers();
+        when(usersResource.get(USER_ID)).thenReturn(userResource);
         when(userResource.toRepresentation()).thenReturn(user);
 
-        UserResponse response = authService.getUser("user-123");
+        UserResponse response = authService.getUser(USER_ID);
 
-        assertEquals("user-123", response.id());
+        assertEquals(USER_ID, response.id());
         assertEquals("sylvester", response.username());
-        assertEquals("sylvester@example.com", response.email());
+        assertEquals(EMAIL, response.email());
         assertEquals("Sylvester", response.firstname());
         assertEquals("Onah", response.lastname());
     }
 
     @Test
-    void updateUserUpdatesKeycloakAndLocalUserAndSendsVerificationWhenEmailChanges() {
-        UserRepresentation keycloakUser = new UserRepresentation();
-        keycloakUser.setId("user-123");
+    void updateUserUpdatesKeycloakAndLocalUserWhenEmailChanges() {
+        UserRepresentation keycloakUser = keycloakUser(true);
         keycloakUser.setEmail("old@example.com");
         keycloakUser.setFirstName("Old");
         keycloakUser.setLastName("Name");
 
         User appUser = User.builder()
-                .id("user-123")
+                .id(USER_ID)
                 .email("old@example.com")
                 .firstName("Old")
                 .lastName("Name")
                 .build();
+        UpdateUserRequest request = new UpdateUserRequest(EMAIL, "Sylvester", "Onah", null);
 
-        UpdateUserRequest request = new UpdateUserRequest("new@example.com", "New", "Person", null);
-
-        when(keycloak.realm(REALM)).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
-        when(usersResource.get("user-123")).thenReturn(userResource);
+        mockRealmUsers();
+        when(usersResource.get(USER_ID)).thenReturn(userResource);
         when(userResource.toRepresentation()).thenReturn(keycloakUser);
-        when(userRepository.findUserById("user-123")).thenReturn(Optional.of(appUser));
+        when(userRepository.findUserById(USER_ID)).thenReturn(Optional.of(appUser));
 
-        authService.updateUser("user-123", request);
+        authService.updateUser(USER_ID, request);
 
         ArgumentCaptor<UserRepresentation> keycloakUserCaptor = ArgumentCaptor.forClass(UserRepresentation.class);
         verify(userResource).update(keycloakUserCaptor.capture());
-        assertEquals("new@example.com", keycloakUserCaptor.getValue().getEmail());
+        assertEquals(EMAIL, keycloakUserCaptor.getValue().getEmail());
+        assertEquals("Sylvester", keycloakUserCaptor.getValue().getFirstName());
+        assertEquals("Onah", keycloakUserCaptor.getValue().getLastName());
         assertEquals(Boolean.FALSE, keycloakUserCaptor.getValue().isEmailVerified());
 
         verify(userResource).sendVerifyEmail();
         verify(userResource).logout();
         verify(userRepository).save(appUser);
-        assertEquals("new@example.com", appUser.getEmail());
-        assertEquals("New", appUser.getFirstName());
-        assertEquals("Person", appUser.getLastName());
+        assertEquals(EMAIL, appUser.getEmail());
+        assertEquals("Sylvester", appUser.getFirstName());
+        assertEquals("Onah", appUser.getLastName());
     }
 
     @Test
-    void deleteUserDeletesKeycloakAndLocalUser() {
-        User appUser = User.builder().id("user-123").build();
+    void deleteUserDeletesKeycloakUserAndLocalUser() {
+        User appUser = User.builder().id(USER_ID).build();
 
-        when(keycloak.realm(REALM)).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
-        when(userRepository.findUserById("user-123")).thenReturn(Optional.of(appUser));
+        mockRealmUsers();
+        when(userRepository.findUserById(USER_ID)).thenReturn(Optional.of(appUser));
 
-        authService.deleteUser("user-123");
+        authService.deleteUser(USER_ID);
 
-        verify(usersResource).delete("user-123");
+        verify(usersResource).delete(USER_ID);
         verify(userRepository).delete(appUser);
     }
 
     @Test
-    void forgotPasswordSendsUpdatePasswordEmail() {
-        UserRepresentation user = new UserRepresentation();
-        user.setId("user-123");
+    void forgotPasswordSendsUpdatePasswordActionEmail() {
+        mockRealmUsers();
+        when(usersResource.searchByEmail(EMAIL, true)).thenReturn(List.of(keycloakUser(false)));
+        when(usersResource.get(USER_ID)).thenReturn(userResource);
 
-        when(keycloak.realm(REALM)).thenReturn(realmResource);
-        when(realmResource.users()).thenReturn(usersResource);
-        when(usersResource.searchByEmail("sylvester@example.com", true)).thenReturn(List.of(user));
-        when(usersResource.get("user-123")).thenReturn(userResource);
-
-        authService.forgotPassword("sylvester@example.com");
+        authService.forgotPassword(EMAIL);
 
         verify(userResource).executeActionsEmail(List.of("UPDATE_PASSWORD"));
     }
 
     @Test
-    void loginPostsPasswordGrantFormAndReturnsTokenResponse() {
-        var tokenResponse = new com.sylvester.springauthkeycloak.dto.TokenResponse("access-token", "refresh-token");
+    void forgotPasswordThrowsWhenUserDoesNotExist() {
+        mockRealmUsers();
+        when(usersResource.searchByEmail(EMAIL, true)).thenReturn(List.of());
 
-        when(restClient.post()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri("http://localhost:8079/realms/master/protocol/openid-connect/token"))
-                .thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.contentType(MediaType.APPLICATION_FORM_URLENCODED)).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.body(any(MultiValueMap.class))).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.body(com.sylvester.springauthkeycloak.dto.TokenResponse.class)).thenReturn(tokenResponse);
+        assertThrows(NotFoundException.class, () -> authService.forgotPassword(EMAIL));
+    }
 
-        var response = authService.login(new com.sylvester.springauthkeycloak.dto.LoginRequest(
-                "sylvester@example.com",
-                "password123"
-        ));
+    @Test
+    void loginPostsPasswordGrantAndStoresReturnedTokens() {
+        TokenResponse tokenResponse = tokenResponse("access-token", "refresh-token");
+        mockTokenPost(tokenUrl(), tokenResponse);
+
+        TokenResponse response = authService.login(new LoginRequest(EMAIL, "password123"));
 
         assertEquals(tokenResponse, response);
-
-        ArgumentCaptor<MultiValueMap<String, String>> formCaptor = ArgumentCaptor.forClass(MultiValueMap.class);
-        verify(requestBodyUriSpec).body(formCaptor.capture());
-        MultiValueMap<String, String> form = formCaptor.getValue();
+        MultiValueMap<String, String> form = capturedForm();
         assertEquals("password", form.getFirst("grant_type"));
-        assertEquals("client-id", form.getFirst("client_id"));
-        assertEquals("client-secret", form.getFirst("client_secret"));
-        assertEquals("sylvester@example.com", form.getFirst("username"));
+        assertEquals(CLIENT_ID, form.getFirst("client_id"));
+        assertEquals(CLIENT_SECRET, form.getFirst("client_secret"));
+        assertEquals(EMAIL, form.getFirst("username"));
         assertEquals("password123", form.getFirst("password"));
+        verify(tokenRepository).storeTokens(EMAIL, "access-token", "refresh-token", 300_000L, 1_800_000L);
     }
 
     @Test
-    void refreshPostsRefreshTokenGrantFormAndReturnsTokenResponse() {
-        var tokenResponse = new com.sylvester.springauthkeycloak.dto.TokenResponse("access-token", "refresh-token");
+    void refreshPostsRefreshGrantRotatesTokensAndReturnsTokenResponse() {
+        TokenResponse tokenResponse = tokenResponse("new-access-token", "new-refresh-token");
+        mockTokenPost(tokenUrl(), tokenResponse);
 
-        when(restClient.post()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri("http://localhost:8079/realms/master/protocol/openid-connect/token"))
-                .thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.contentType(MediaType.APPLICATION_FORM_URLENCODED)).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.body(any(MultiValueMap.class))).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.retrieve()).thenReturn(responseSpec);
-        when(responseSpec.body(com.sylvester.springauthkeycloak.dto.TokenResponse.class)).thenReturn(tokenResponse);
-
-        var response = authService.refresh("refresh-token");
+        TokenResponse response = authService.refresh("old-refresh-token", EMAIL);
 
         assertEquals(tokenResponse, response);
-
-        ArgumentCaptor<MultiValueMap<String, String>> formCaptor = ArgumentCaptor.forClass(MultiValueMap.class);
-        verify(requestBodyUriSpec).body(formCaptor.capture());
-        MultiValueMap<String, String> form = formCaptor.getValue();
+        MultiValueMap<String, String> form = capturedForm();
         assertEquals("refresh_token", form.getFirst("grant_type"));
-        assertEquals("client-id", form.getFirst("client_id"));
-        assertEquals("client-secret", form.getFirst("client_secret"));
-        assertEquals("refresh-token", form.getFirst("refresh_token"));
+        assertEquals(CLIENT_ID, form.getFirst("client_id"));
+        assertEquals(CLIENT_SECRET, form.getFirst("client_secret"));
+        assertEquals("old-refresh-token", form.getFirst("refresh_token"));
+        verify(tokenRepository).removeAllTokens(EMAIL, 300_000L, 1_800_000L);
+        verify(tokenRepository).storeTokens(EMAIL, "new-access-token", "new-refresh-token", 300_000L, 1_800_000L);
     }
 
     @Test
-    void logoutPostsLogoutForm() {
+    void logoutPostsLogoutGrantAndRemovesStoredTokens() {
         when(restClient.post()).thenReturn(requestBodyUriSpec);
-        when(requestBodyUriSpec.uri("http://localhost:8079/realms/master/protocol/openid-connect/logout"))
-                .thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(logoutUrl())).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.contentType(MediaType.APPLICATION_FORM_URLENCODED)).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.body(any(MultiValueMap.class))).thenReturn(requestBodyUriSpec);
         when(requestBodyUriSpec.retrieve()).thenReturn(responseSpec);
         when(responseSpec.toBodilessEntity()).thenReturn(ResponseEntity.noContent().build());
+        when(tokenRepository.getAccessToken(EMAIL)).thenReturn("access-token");
+        when(tokenRepository.getRefreshToken(EMAIL)).thenReturn("refresh-token");
+        when(tokenRepository.remainingLifetime("access-token")).thenReturn(120L);
+        when(tokenRepository.remainingLifetime("refresh-token")).thenReturn(600L);
 
-        authService.logout("refresh-token");
+        authService.logout(EMAIL, "refresh-token");
 
+        MultiValueMap<String, String> form = capturedForm();
+        assertEquals(CLIENT_ID, form.getFirst("client_id"));
+        assertEquals(CLIENT_SECRET, form.getFirst("client_secret"));
+        assertEquals("refresh-token", form.getFirst("refresh_token"));
+        verify(tokenRepository).removeAllTokens(EMAIL, 120L, 600L);
+    }
+
+    private void mockRealmUsers() {
+        when(keycloak.realm(REALM)).thenReturn(realmResource);
+        when(realmResource.users()).thenReturn(usersResource);
+    }
+
+    private void mockTokenPost(String url, TokenResponse response) {
+        when(restClient.post()).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.uri(url)).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.contentType(MediaType.APPLICATION_FORM_URLENCODED)).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.body(any(MultiValueMap.class))).thenReturn(requestBodyUriSpec);
+        when(requestBodyUriSpec.retrieve()).thenReturn(responseSpec);
+        when(responseSpec.body(TokenResponse.class)).thenReturn(response);
+    }
+
+    @SuppressWarnings("unchecked")
+    private MultiValueMap<String, String> capturedForm() {
         ArgumentCaptor<MultiValueMap<String, String>> formCaptor = ArgumentCaptor.forClass(MultiValueMap.class);
         verify(requestBodyUriSpec).body(formCaptor.capture());
-        MultiValueMap<String, String> form = formCaptor.getValue();
-        assertEquals("client-id", form.getFirst("client_id"));
-        assertEquals("client-secret", form.getFirst("client_secret"));
-        assertEquals("refresh-token", form.getFirst("refresh_token"));
+        return formCaptor.getValue();
+    }
+
+    private CreateUserRequest createUserRequest() {
+        return new CreateUserRequest("sylvester", EMAIL, "Sylvester", "Onah", "password123");
+    }
+
+    private UserRepresentation keycloakUser(boolean emailVerified) {
+        UserRepresentation user = new UserRepresentation();
+        user.setId(USER_ID);
+        user.setEmail(EMAIL);
+        user.setEmailVerified(emailVerified);
+        return user;
+    }
+
+    private TokenResponse tokenResponse(String accessToken, String refreshToken) {
+        return new TokenResponse(accessToken, refreshToken, 300L, 1800L, "Bearer");
+    }
+
+    private String tokenUrl() {
+        return "http://localhost:8079/realms/" + REALM + "/protocol/openid-connect/token";
+    }
+
+    private String logoutUrl() {
+        return "http://localhost:8079/realms/" + REALM + "/protocol/openid-connect/logout";
     }
 }

@@ -34,8 +34,9 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
         }
 
         String clientIp = getClientIp(request);
+        String path = request.getURI().getPath();
 
-        Bucket tokenBucket = rateLimitingService.resolveBucket(clientIp);
+        Bucket tokenBucket = rateLimitingService.resolveBucket("rate-limit"+clientIp, path);
         var probe = tokenBucket.tryConsumeAndReturnRemaining(1);
 
         ServerHttpResponse response = exchange.getResponse();
@@ -63,7 +64,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
                   "status": %d,
                   "error": "Too Many Requests",
                   "message": "You have exhausted your API request quota",
-                  "retryAfterSeconds": %d
+                  "retryAfterSeconds":"Try again after %d seconds"
                 }
                 """.formatted(
                 HttpStatus.TOO_MANY_REQUESTS.value(),

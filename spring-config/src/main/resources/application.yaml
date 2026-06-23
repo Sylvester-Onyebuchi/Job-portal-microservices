@@ -4,7 +4,8 @@ server:
 spring:
   application:
     name: spring-config
-
+  config:
+    import: classpath:.env.properties
   rabbitmq:
     host: ${SPRING_CONFIG_RABBITMQ_HOST}
     port: ${SPRING_CONFIG_RABBITMQ_PORT}
@@ -26,8 +27,6 @@ spring:
           uri: ${SPRING_CONFIG_GIT_URI}
           clone-on-start: true
           default-label: ${SPRING_CONFIG_GIT_DEFAULT_LABEL}
-  config:
-    import: optional:file:.env.local.properties
 
 eureka:
   client:

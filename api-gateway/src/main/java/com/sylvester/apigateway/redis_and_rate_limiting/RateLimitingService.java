@@ -17,26 +17,49 @@ import java.util.function.Supplier;
 @RequiredArgsConstructor
 public class RateLimitingService {
 
-    private static final int REQUEST_PER_MINUTE = 20;
 
     private final ProxyManager<String> proxyManager;
 
 
-    public Bucket resolveBucket(String key) {
+    public Bucket resolveBucket(String key, String path) {
 
-        Supplier<BucketConfiguration> configSupplier = this::getConfig;
         return proxyManager
                 .builder()
-                .build(key, configSupplier);
+                .build(key, () -> getConfig(path));
     }
 
-    private BucketConfiguration getConfig(){
-       var limit = Bandwidth.builder()
-                .capacity(REQUEST_PER_MINUTE)
-                .refillIntervally(REQUEST_PER_MINUTE, Duration.ofMinutes(1))
+
+    private BucketConfiguration getConfig(String path){
+        if (path.startsWith("/api/v1/auth/public/")) {
+            return publicConfig();
+        }
+
+        return defaultConfig();
+    }
+
+    private BucketConfiguration publicConfig(){
+
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(5)
+                .refillIntervally(5, Duration.ofMinutes(1))
                 .build();
-        return  BucketConfiguration.builder()
+
+        return BucketConfiguration.builder()
                 .addLimit(limit)
                 .build();
     }
+
+
+    private BucketConfiguration defaultConfig(){
+
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(40)
+                .refillIntervally(40, Duration.ofMinutes(1))
+                .build();
+
+        return BucketConfiguration.builder()
+                .addLimit(limit)
+                .build();
+    }
+
 }
