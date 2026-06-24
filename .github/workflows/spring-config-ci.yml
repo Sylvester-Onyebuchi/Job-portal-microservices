@@ -46,7 +46,7 @@ jobs:
       - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: ./spring-config-server
           push: true
           tags: ${{ secrets.DOCKERHUB_USERNAME }}/spring-config-server:latest
 
