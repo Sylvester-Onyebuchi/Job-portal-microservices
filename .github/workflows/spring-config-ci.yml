@@ -1,0 +1,60 @@
+
+name: Spring-Config-Server CI/CD
+
+on:
+  push:
+    branches: ["backend"]
+    paths:
+      - "spring-config/**"
+      - ".github/workflows/spring-config-ci.yml"
+
+  pull_request:
+    branches: ["backend"]
+    paths:
+      - "spring-config/**"
+      - ".github/workflows/spring-config-ci.yml"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: ./spring-config
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: "maven"
+
+      - name: Give permission to mvnw
+        run: chmod +x mvnw
+
+      - name: Build with Maven
+        run: ./mvnw clean package -DskipTests
+
+      - name: Check Docker username
+        run: |
+          if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then
+            echo "DOCKERHUB_USERNAME is empty"
+            exit 1
+          fi
+          echo "Docker username exists"
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.DOCKER_USERNAME }}/spring-config-server:latest .
+
+      - name: Push Docker image
+        run: docker push ${{ secrets.DOCKER_USERNAME }}/spring-config-server:latest
