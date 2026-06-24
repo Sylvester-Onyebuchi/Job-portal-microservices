@@ -6,6 +6,7 @@ import io.github.bucket4j.distributed.proxy.ClientSideConfig;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import io.github.bucket4j.redis.lettuce.cas.LettuceBasedProxyManager;
 import io.lettuce.core.RedisClient;
+import io.lettuce.core.RedisURI;
 import io.lettuce.core.codec.ByteArrayCodec;
 import io.lettuce.core.codec.RedisCodec;
 import io.lettuce.core.codec.StringCodec;
@@ -47,15 +48,6 @@ public class RedisConfig {
     }
 
     @Bean
-    public RedisConnectionFactory redisConnectionFactory() {
-        RedisStandaloneConfiguration config = new RedisStandaloneConfiguration(host, port);
-        config.setPassword(RedisPassword.of(password));
-        return new LettuceConnectionFactory(config);
-    }
-
-
-
-    @Bean
     public RedisTemplate<String, Object> redisTemplate(
         RedisConnectionFactory connectionFactory
         )   {
@@ -71,11 +63,14 @@ public class RedisConfig {
 
     @Bean
     public RedisClient redisClient() {
-        String url = String.format("%s:%d", host, port);
-        return RedisClient.create(
-                "redis://:" +
-                        URLEncoder.encode(password, StandardCharsets.UTF_8) +"@"+ url
-        );
+
+        RedisURI uri = RedisURI.builder()
+                .withHost(host)
+                .withPort(port)
+                .withPassword(password.toCharArray())
+                .build();
+
+        return RedisClient.create(uri);
     }
 
 
