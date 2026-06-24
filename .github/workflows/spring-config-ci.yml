@@ -7,6 +7,9 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./spring-config
     env:
       SPRING_CONFIG_RABBITMQ_HOST: ${{ secrets.SPRING_CONFIG_RABBITMQ_HOST }}
       SPRING_CONFIG_RABBITMQ_PORT: ${{ secrets.SPRING_CONFIG_RABBITMQ_PORT }}
@@ -45,5 +48,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/spring-config-server:1.0.0
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/spring-config-server:latest
 

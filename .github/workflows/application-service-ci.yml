@@ -6,6 +6,9 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./application-service
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
