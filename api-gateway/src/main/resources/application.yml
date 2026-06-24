@@ -3,7 +3,7 @@ spring:
   application:
     name: api-gateway
   config:
-    import: optional:configserver:http://localhost:8080
+    import: optional:configserver:http://spring-config-server:8080
   profiles:
     active: dev
 management:
