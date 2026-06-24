@@ -322,7 +322,7 @@ class AuthServiceImplTest {
         when(tokenRepository.getAccessToken(EMAIL)).thenReturn("access-token");
         when(tokenRepository.getRefreshToken(EMAIL)).thenReturn("refresh-token");
         when(tokenRepository.remainingLifetime("access-token")).thenReturn(120L);
-        when(tokenRepository.remainingLifetime("refresh-token")).thenReturn(600L);
+        when(tokenRepository.getRefreshTokenTtl("refresh-token")).thenReturn(600L);
 
         authService.logout(EMAIL, "refresh-token");
 
