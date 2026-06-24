@@ -371,10 +371,10 @@ class AuthServiceImplTest {
     }
 
     private String tokenUrl() {
-        return "http://localhost:8079/realms/" + REALM + "/protocol/openid-connect/token";
+        return "http://keycloak:8080/realms/" + REALM + "/protocol/openid-connect/token";
     }
 
     private String logoutUrl() {
-        return "http://localhost:8079/realms/" + REALM + "/protocol/openid-connect/logout";
+        return "http://keycloak:8080/realms/" + REALM + "/protocol/openid-connect/logout";
     }
 }
