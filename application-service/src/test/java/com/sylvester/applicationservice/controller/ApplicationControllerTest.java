@@ -31,6 +31,7 @@ import java.util.Set;
 
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
@@ -108,6 +109,23 @@ class ApplicationControllerTest {
                 "candidate-id",
                 "Bearer token"
         );
+    }
+
+    @Test
+    void submitApplication_shouldReturnBadRequest_whenCvPartIsMissing() throws Exception {
+        MockMultipartFile applicationPart = new MockMultipartFile(
+                "application",
+                "",
+                MediaType.APPLICATION_JSON_VALUE,
+                objectMapper.writeValueAsBytes(request)
+        );
+
+        mockMvc.perform(multipart("/api/v1/applications/apply")
+                        .file(applicationPart)
+                        .header("Authorization", "Bearer token"))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(applicationService);
     }
 
     @Test

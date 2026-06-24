@@ -1,12 +1,14 @@
 package com.sylvester.jobservice.service;
 
 import com.sylvester.jobservice.dtos.CompanyDto;
+import com.sylvester.jobservice.dtos.JobDto;
 import com.sylvester.jobservice.dtos.JobResponse;
 import com.sylvester.jobservice.dtos.PostJobRequest;
 import com.sylvester.jobservice.entity.EmploymentType;
 import com.sylvester.jobservice.entity.Job;
 import com.sylvester.jobservice.entity.JobStatus;
 import com.sylvester.jobservice.entity.WorkMode;
+import com.sylvester.jobservice.exceptions.AlreadyExistsException;
 import com.sylvester.jobservice.exceptions.NotFoundException;
 import com.sylvester.jobservice.repository.JobRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -16,7 +18,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.web.client.RestClient;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -101,7 +106,7 @@ class JobServiceImplTest {
 
         assertEquals(company.getId(), savedJob.getCompanyId());
         assertEquals(request.title(), savedJob.getTitle());
-        assertEquals(company.getLocation(), savedJob.getLocation());
+        assertEquals(request.location(), savedJob.getLocation());
         assertEquals(EmploymentType.FULL_TIME, savedJob.getEmploymentType());
         assertEquals(WorkMode.REMOTE, savedJob.getWorkMode());
         assertEquals(request.description(), savedJob.getDescription());
@@ -112,6 +117,20 @@ class JobServiceImplTest {
         assertEquals(JobStatus.RECRUITING, savedJob.getStatus());
         assertNotNull(savedJob.getPostedAt());
         assertNotNull(savedJob.getExpiresAt());
+    }
+
+    @Test
+    void postJob_shouldThrowAlreadyExistsException_whenCompanyAlreadyHasJobWithTitle() {
+        given(companyClient.getJobById("Bearer token")).willReturn(company);
+        given(jobRepository.existsByCompanyIdAndTitleIgnoreCase(company.getId(), request.title()))
+                .willReturn(true);
+
+        assertThrows(
+                AlreadyExistsException.class,
+                () -> jobService.postJob(request, "Bearer token")
+        );
+
+        verify(jobRepository, never()).save(any(Job.class));
     }
 
     @Test
@@ -164,6 +183,24 @@ class JobServiceImplTest {
     }
 
     @Test
+    void getJob_shouldReturnPublicJobResponse() {
+        given(jobRepository.findById("job-id")).willReturn(Optional.of(job));
+
+        JobResponse response = jobService.getJob("job-id");
+
+        assertEquals(job.getId(), response.getJobId());
+        assertEquals(job.getTitle(), response.getJobName());
+        assertEquals(job.getPostedAt(), response.getPostedAt());
+    }
+
+    @Test
+    void getJob_shouldThrowNotFoundException_whenJobDoesNotExist() {
+        given(jobRepository.findById("job-id")).willReturn(Optional.empty());
+
+        assertThrows(NotFoundException.class, () -> jobService.getJob("job-id"));
+    }
+
+    @Test
     void getJobsByCompanyId_shouldReturnJobsForCompany() {
         Job secondJob = Job.builder()
                 .id("second-job-id")
@@ -202,5 +239,35 @@ class JobServiceImplTest {
         assertThrows(NotFoundException.class, () -> jobService.closeJob("job-id"));
 
         verify(jobRepository, never()).save(any(Job.class));
+    }
+
+    @Test
+    void findJobByTitle_shouldReturnMappedJobDtosSortedByPostedAtDescending() {
+        given(jobRepository.findByTitleContainingIgnoreCase(any(String.class), any(Pageable.class)))
+                .willReturn(new PageImpl<>(List.of(job)));
+
+        Page<JobDto> response = jobService.findJobByTitle("backend", 0, 10);
+
+        assertEquals(1, response.getContent().size());
+        assertEquals(job.getId(), response.getContent().getFirst().getId());
+        assertEquals(job.getTitle(), response.getContent().getFirst().getTitle());
+
+        ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
+        verify(jobRepository).findByTitleContainingIgnoreCase(any(String.class), pageableCaptor.capture());
+        assertEquals(0, pageableCaptor.getValue().getPageNumber());
+        assertEquals(10, pageableCaptor.getValue().getPageSize());
+        assertEquals("postedAt: DESC", pageableCaptor.getValue().getSort().toString());
+    }
+
+    @Test
+    void getAllJobs_shouldReturnMappedJobDtos() {
+        given(jobRepository.findAll(PageRequest.of(0, 10))).willReturn(new PageImpl<>(List.of(job)));
+
+        Page<JobDto> response = jobService.getAllJobs(0, 10);
+
+        assertEquals(1, response.getContent().size());
+        assertEquals(job.getId(), response.getContent().getFirst().getId());
+        assertEquals(job.getTitle(), response.getContent().getFirst().getTitle());
+        verify(jobRepository).findAll(PageRequest.of(0, 10));
     }
 }

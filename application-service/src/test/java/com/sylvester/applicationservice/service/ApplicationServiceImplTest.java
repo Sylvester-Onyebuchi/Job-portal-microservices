@@ -25,10 +25,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.Optional;
 import java.util.Set;
 
@@ -188,6 +190,24 @@ class ApplicationServiceImplTest {
     }
 
     @Test
+    void submitApplication_shouldPropagateIOException_whenCvCannotBeRead() throws IOException {
+        MultipartFile brokenFile = org.mockito.Mockito.mock(MultipartFile.class);
+        given(jobClient.getJobById(request.jobId(), "Bearer token")).willReturn(job);
+        given(applicationRepository.existsByJobIdAndCandidateUserId(job.getJobId(), "candidate-id"))
+                .willReturn(false);
+        given(brokenFile.getBytes()).willThrow(new IOException("cannot read file"));
+
+        assertThrows(
+                IOException.class,
+                () -> applicationService.submitApplication(request, brokenFile, "candidate-id", "Bearer token")
+        );
+
+        verify(applicationRepository, never()).save(any(Application.class));
+        verify(producer, never()).sendMessage(any(ApplicationEvent.class));
+        verify(producer, never()).sendMessageToCompany(any(CompanyAlertEvent.class));
+    }
+
+    @Test
     void deleteApplication_shouldDeleteApplication_whenCandidateOwnsIt() {
         given(applicationRepository.findApplicationById("application-id")).willReturn(Optional.of(application));
 
@@ -206,6 +226,18 @@ class ApplicationServiceImplTest {
         );
 
         verify(applicationRepository).delete(application);
+    }
+
+    @Test
+    void deleteApplication_shouldThrowNoSuchElementException_whenApplicationDoesNotExist() {
+        given(applicationRepository.findApplicationById("application-id")).willReturn(Optional.empty());
+
+        assertThrows(
+                NoSuchElementException.class,
+                () -> applicationService.deleteApplication("application-id", "candidate-id")
+        );
+
+        verify(applicationRepository, never()).delete(any(Application.class));
     }
 
     @Test

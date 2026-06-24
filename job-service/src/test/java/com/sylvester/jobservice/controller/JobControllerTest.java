@@ -1,14 +1,19 @@
 package com.sylvester.jobservice.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.sylvester.jobservice.dtos.JobDto;
 import com.sylvester.jobservice.dtos.JobResponse;
 import com.sylvester.jobservice.dtos.PostJobRequest;
+import com.sylvester.jobservice.entity.EmploymentType;
+import com.sylvester.jobservice.entity.WorkMode;
 import com.sylvester.jobservice.service.JobService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.core.MethodParameter;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -156,7 +161,7 @@ class JobControllerTest {
         given(jobService.getJobById("job-id", "Bearer token", "applicant@example.com"))
                 .willReturn(response);
 
-        mockMvc.perform(get("/api/v1/jobs/job-id/job")
+        mockMvc.perform(get("/api/v1/jobs/job/job-id")
                         .header("Authorization", "Bearer token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.jobId").value("job-id"))
@@ -166,6 +171,71 @@ class JobControllerTest {
                 .andExpect(jsonPath("$.companyOwnerEmail").value("applicant@example.com"));
 
         verify(jobService).getJobById("job-id", "Bearer token", "applicant@example.com");
+    }
+
+    @Test
+    void getPublicJobById_shouldReturnJobFromService() throws Exception {
+        JobResponse response = new JobResponse(
+                "job-id",
+                null,
+                "Backend Engineer",
+                null,
+                null,
+                LocalDateTime.of(2026, 1, 2, 3, 4)
+        );
+        given(jobService.getJob("job-id")).willReturn(response);
+
+        mockMvc.perform(get("/api/v1/jobs/job-id"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.jobId").value("job-id"))
+                .andExpect(jsonPath("$.jobName").value("Backend Engineer"));
+
+        verify(jobService).getJob("job-id");
+    }
+
+    @Test
+    void searchJobs_shouldReturnPagedJobsFromService() throws Exception {
+        JobDto jobDto = new JobDto(
+                "job-id",
+                "Backend Engineer",
+                EmploymentType.FULL_TIME,
+                WorkMode.REMOTE,
+                "Zagreb",
+                "Build services",
+                "Own APIs",
+                "Java",
+                "Remote",
+                "Good team",
+                LocalDateTime.of(2026, 1, 2, 3, 4)
+        );
+        given(jobService.findJobByTitle("backend", 1, 5))
+                .willReturn(new PageImpl<>(List.of(jobDto), PageRequest.of(1, 5), 1));
+
+        mockMvc.perform(get("/api/v1/jobs/search")
+                        .param("title", "backend")
+                        .param("page", "1")
+                        .param("size", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value("job-id"))
+                .andExpect(jsonPath("$.content[0].title").value("Backend Engineer"));
+
+        verify(jobService).findJobByTitle("backend", 1, 5);
+    }
+
+    @Test
+    void getAllJobs_shouldReturnPagedJobsFromService() throws Exception {
+        JobDto jobDto = new JobDto();
+        jobDto.setId("job-id");
+        jobDto.setTitle("Backend Engineer");
+        given(jobService.getAllJobs(0, 10))
+                .willReturn(new PageImpl<>(List.of(jobDto), PageRequest.of(0, 10), 1));
+
+        mockMvc.perform(get("/api/v1/jobs"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value("job-id"))
+                .andExpect(jsonPath("$.content[0].title").value("Backend Engineer"));
+
+        verify(jobService).getAllJobs(0, 10);
     }
 
     @Test

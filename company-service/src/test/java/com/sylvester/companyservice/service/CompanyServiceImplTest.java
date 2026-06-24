@@ -15,9 +15,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -74,6 +71,7 @@ class CompanyServiceImplTest {
     @Test
     void createCompany_shouldSaveCompanyAndPublishEvent() {
         given(companyRepository.findByName(request.name())).willReturn(Optional.empty());
+        given(companyRepository.findCompanyByOwnerId("owner-id")).willReturn(Optional.empty());
         given(companyRepository.save(any(Company.class))).willReturn(company);
 
         companyService.createCompany(request, "owner-id");
@@ -104,6 +102,20 @@ class CompanyServiceImplTest {
     @Test
     void createCompany_shouldThrowAlreadyExistsException_whenCompanyNameExists() {
         given(companyRepository.findByName(request.name())).willReturn(Optional.of(company));
+
+        assertThrows(
+                AlreadyExistsException.class,
+                () -> companyService.createCompany(request, "owner-id")
+        );
+
+        verify(companyRepository, never()).save(any(Company.class));
+        verify(producer, never()).sendMessage(any(CreateCompanyEvent.class));
+    }
+
+    @Test
+    void createCompany_shouldThrowAlreadyExistsException_whenOwnerAlreadyHasCompany() {
+        given(companyRepository.findByName(request.name())).willReturn(Optional.empty());
+        given(companyRepository.findCompanyByOwnerId("owner-id")).willReturn(Optional.of(company));
 
         assertThrows(
                 AlreadyExistsException.class,
@@ -153,18 +165,18 @@ class CompanyServiceImplTest {
 
     @Test
     void deleteCompany_shouldDeleteExistingCompany() {
-        given(companyRepository.findCompanyByOwnerId("owner-id")).willReturn(Optional.of(company));
+        given(companyRepository.findCompanyById("company-id")).willReturn(Optional.of(company));
 
-        companyService.deleteCompany("owner-id");
+        companyService.deleteCompany("company-id");
 
         verify(companyRepository).delete(company);
     }
 
     @Test
     void deleteCompany_shouldThrowNotFoundException_whenCompanyDoesNotExist() {
-        given(companyRepository.findCompanyByOwnerId("owner-id")).willReturn(Optional.empty());
+        given(companyRepository.findCompanyById("company-id")).willReturn(Optional.empty());
 
-        assertThrows(NotFoundException.class, () -> companyService.deleteCompany("owner-id"));
+        assertThrows(NotFoundException.class, () -> companyService.deleteCompany("company-id"));
 
         verify(companyRepository, never()).delete(any(Company.class));
     }
@@ -181,14 +193,13 @@ class CompanyServiceImplTest {
         assertEquals(company.getWebsite(), companyDto.getWebsite());
         assertEquals(company.getLocation(), companyDto.getLocation());
         assertEquals(company.getDescription(), companyDto.getDescription());
-        assertEquals("owner@example.com", companyDto.getEmail());
+        assertEquals(company.getEmail(), companyDto.getEmail());
     }
 
     @Test
     void getCompany_shouldThrowNotFoundException_whenCompanyDoesNotExist() {
         given(companyRepository.findCompanyByOwnerId("owner-id")).willReturn(Optional.empty());
 
-        Pageable pageable = PageRequest.of(0, 10);
         assertThrows(NotFoundException.class, () -> companyService.getCompany("owner-id"));
     }
 }

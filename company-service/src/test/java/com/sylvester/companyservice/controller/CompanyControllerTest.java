@@ -10,9 +10,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.MethodParameter;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.servlet.MockMvc;
@@ -32,7 +29,6 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -51,6 +47,7 @@ class CompanyControllerTest {
     void setUp() {
         jwt = Jwt.withTokenValue("token")
                 .header("alg", "none")
+                .subject("owner-id")
                 .issuedAt(Instant.now())
                 .expiresAt(Instant.now().plusSeconds(3600))
                 .claims(claims -> {
@@ -137,13 +134,6 @@ class CompanyControllerTest {
     }
 
     @Test
-    void getString_shouldReturnHelloWorld() throws Exception {
-        mockMvc.perform(get("/api/v1/companies"))
-                .andExpect(status().isOk())
-                .andExpect(content().string("Hello World"));
-    }
-
-    @Test
     void updateCompany_shouldReturnOkAndCallServiceWithOwnerId() throws Exception {
         mockMvc.perform(put("/api/v1/companies/company/update")
                         .contentType("application/json")
@@ -154,11 +144,11 @@ class CompanyControllerTest {
     }
 
     @Test
-    void deleteCompany_shouldReturnOkAndCallServiceWithOwnerId() throws Exception {
-        mockMvc.perform(delete("/api/v1/companies/company/delete"))
+    void deleteCompany_shouldReturnOkAndCallServiceWithCompanyId() throws Exception {
+        mockMvc.perform(delete("/api/v1/companies/company/delete/company-id"))
                 .andExpect(status().isOk());
 
-        verify(companyService).deleteCompany("owner-id");
+        verify(companyService).deleteCompany("company-id");
     }
 
     private static class JwtArgumentResolver implements HandlerMethodArgumentResolver {
