@@ -210,7 +210,7 @@ public class AuthServiceImpl implements AuthService {
         formData.add("username", request.email());
         formData.add("password", request.password());
 
-        String url = "http://localhost:8079/realms/"+realm+"/protocol/openid-connect/token";
+        String url = "http://keycloak:8080/realms/"+realm+"/protocol/openid-connect/token";
 
       TokenResponse response = restClient.post()
                 .uri(url)
@@ -232,7 +232,7 @@ public class AuthServiceImpl implements AuthService {
 
         MultiValueMap<String,String> form = new LinkedMultiValueMap<>();
 
-        String url = "http://localhost:8079/realms/"+realm+"/protocol/openid-connect/token";
+        String url = "http://keycloak:8080/realms/"+realm+"/protocol/openid-connect/token";
 
         form.add("grant_type","refresh_token");
 
@@ -279,7 +279,7 @@ public class AuthServiceImpl implements AuthService {
 
         MultiValueMap<String,String> form = new LinkedMultiValueMap<>();
 
-        String logoutUrl = "http://localhost:8079/realms/" +realm + "/protocol/openid-connect/logout";
+        String logoutUrl = "http://keycloak:8080/realms/" +realm + "/protocol/openid-connect/logout";
 
         form.add("client_id",clientId);
 
