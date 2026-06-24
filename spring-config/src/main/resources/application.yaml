@@ -4,8 +4,8 @@ server:
 spring:
   application:
     name: spring-config
-  config:
-    import: classpath:.env.properties
+#  config:
+#    import: classpath:.env.properties
   rabbitmq:
     host: ${SPRING_CONFIG_RABBITMQ_HOST}
     port: ${SPRING_CONFIG_RABBITMQ_PORT}
