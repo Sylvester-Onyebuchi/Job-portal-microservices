@@ -22,7 +22,7 @@ USER job-service:job-service
 
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 
-EXPOSE 8087
+EXPOSE 8084
 
 LABEL authors="sylvester onah"
 

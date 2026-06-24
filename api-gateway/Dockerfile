@@ -14,7 +14,7 @@ WORKDIR /app
 
 RUN addgroup -S gateway  &&  adduser -S gateway -G  gateway
 
-COPY - - from=build --chown=gateway:gateway /app/target/*.jar  app.jar
+COPY --from=build --chown=gateway:gateway /app/target/*.jar  app.jar
 
 USER gateway:gateway
 
@@ -22,6 +22,6 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 
 LABEL authors="sylvester onah"
 
-EXPOSE 8084
+EXPOSE 8086
 
 ENTRYPOINT ["sh", "-c", " exec java ${JAVA_OPTS} -jar app.jar"]

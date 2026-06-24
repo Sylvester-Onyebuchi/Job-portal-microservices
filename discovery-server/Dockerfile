@@ -14,7 +14,7 @@ WORKDIR /app
 
 RUN addgroup -S discovery-server && adduser -S discovery-server -G discovery-server
 
-COPY - - from=build --chown=discovery-server:discovery-server /app/target/*.jar  app.jar
+COPY --from=build --chown=discovery-server:discovery-server /app/target/*.jar  app.jar
 
 USER discovery-server:discovery-server
 

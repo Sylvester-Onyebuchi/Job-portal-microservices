@@ -16,13 +16,13 @@ WORKDIR /app
 
 RUN addgroup -S notification && adduser -S notification -G notification
 
-COPY --from=build --chown=notification:notification /app/target/*.jar app.jar
+COPY --from=build --chown=notification:notification /app/target/*.jar  app.jar
 
 USER notification:notification
 
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 
-EXPOSE 8083
+EXPOSE 8082
 
 LABEL authors="sylvester onah"
 

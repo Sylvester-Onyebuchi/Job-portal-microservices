@@ -14,7 +14,7 @@ WORKDIR /app
 
 RUN addgroup -S config-server && adduser -S config-server -G config-server
 
-COPY - - from=build --chown=config-server:config-server /app/target/*.jar  app.jar
+COPY --from=build --chown=config-server:config-server /app/target/*.jar  app.jar
 
 USER config-server:config-server
 

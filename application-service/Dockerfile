@@ -20,7 +20,7 @@ COPY --from=build --chown=application-service:application-service /app/target/*.
 
 USER application-service:application-service
 
-EXPOSE 8088
+EXPOSE 8085
 
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 

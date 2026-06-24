@@ -18,7 +18,7 @@ COPY --from=build --chown=company-service:company-service /app/target/*.jar  app
 
 USER company-service:company-service
 
-EXPOSE 8086
+EXPOSE 8083
 
 ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 

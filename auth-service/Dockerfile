@@ -14,7 +14,7 @@ WORKDIR /app
 
 RUN addgroup -S auth-service && adduser -S auth-service -G auth-service
 
-COPY - - from=build --chown=auth-service:auth-service /app/target/*.jar  app.jar
+COPY --from=build --chown=auth-service:auth-service /app/target/*.jar  app.jar
 
 USER auth-service:auth-service
 
@@ -22,6 +22,6 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
 
 LABEL authors="sylvester onah"
 
-EXPOSE 8085
+EXPOSE 8081
 
 ENTRYPOINT ["sh", "-c", " exec java ${JAVA_OPTS} -jar app.jar"]
