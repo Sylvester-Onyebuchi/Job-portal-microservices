@@ -23,6 +23,8 @@ spring:
           group: spring-config
     config:
       server:
+        encrypt:
+          enabled: true
         git:
           uri: ${SPRING_CONFIG_GIT_URI}
           clone-on-start: true
