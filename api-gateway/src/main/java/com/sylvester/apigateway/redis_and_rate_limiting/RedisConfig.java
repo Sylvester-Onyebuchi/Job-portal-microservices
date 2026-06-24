@@ -29,14 +29,18 @@ public class RedisConfig {
 
 
     private final String password;
+    private final String host;
+    private final int port;
 
     public RedisConfig(
-//            @Value("${spring.data.redis.host}") String host,
-//            @Value("${spring.data.redis.port}") int port,
+            @Value("${spring.data.redis.host}") String host,
+            @Value("${spring.data.redis.port}") int port,
             @Value("${spring.data.redis.password}") String password
     ) {
 
         this.password = password;
+        this.host = host;
+        this.port = port;
     }
 
 
@@ -57,10 +61,10 @@ public class RedisConfig {
 
     @Bean
     public RedisClient redisClient() {
+        String url = String.format("%s:%d", host, port);
         return RedisClient.create(
                 "redis://:" +
-                        URLEncoder.encode(password, StandardCharsets.UTF_8) +
-                        "@localhost:6380"
+                        URLEncoder.encode(password, StandardCharsets.UTF_8) +"@"+ url
         );
     }
 
