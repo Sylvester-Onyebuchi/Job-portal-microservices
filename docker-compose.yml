@@ -136,6 +136,8 @@ services:
       KC_HEALTH_ENABLED: "true"
     ports:
       - "8079:8080"
+    volumes:
+      - ./themes:/opt/keycloak/themes
     depends_on:
       keycloak-db:
         condition: service_healthy
